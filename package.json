@@ -1,6 +1,6 @@
 {
   "name": "swc-plugin-auto-css-module",
-  "version": "0.0.7",
+  "version": "0.0.9",
   "description": "swc plugin for auto css module",
   "license": "ISC",
   "keywords": [

@@ -21,6 +21,7 @@ pub struct PluginConfig {
     file_suffix: Option<String>,
 }
 
+#[derive(Debug)]
 pub struct TransformVisitor {
     css_suffix: Vec<String>,
     file_suffix: String,
@@ -39,8 +40,9 @@ impl VisitMut for TransformVisitor {
 
     fn visit_mut_import_decl(&mut self, n: &mut ImportDecl) {
         if !n.specifiers.is_empty() {
-            if let Some(extension) = n.src.value.split('.').last() {
-                if self.css_suffix.contains(&extension.to_string()) {
+            if let Some(extension) = n.src.value.rsplit('.').next() {
+                let extension_with_dot = format!(".{}", extension);
+                if self.css_suffix.contains(&extension_with_dot) {
                     let new_value = format!("{}?{}", n.src.value, self.file_suffix);
                     n.src.value = new_value.clone().into();
                     n.src.raw = Some(format!("\"{}\"", new_value).into());
@@ -52,8 +54,10 @@ impl VisitMut for TransformVisitor {
 
 #[plugin_transform]
 pub fn process_transform(program: Program, data: TransformPluginProgramMetadata) -> Program {
+    let raw_config = data.get_transform_plugin_config().expect("failed to get plugin config");
+
     let config: PluginConfig = serde_json
-        ::from_str(&data.get_transform_plugin_config().expect("failed to get plugin config"))
+        ::from_str(&raw_config)
         .unwrap_or_else(|_| { PluginConfig { css_suffix: None, file_suffix: None } });
 
     let css_suffix = match config.css_suffix {
