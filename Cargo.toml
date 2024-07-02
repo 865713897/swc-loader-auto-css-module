@@ -11,7 +11,9 @@ lto = true
 
 [dependencies]
 serde = "1"
+serde_json = { version = "1.0.117", features = ["preserve_order"] }
 swc_core = { version = "0.95.*", features = ["ecma_plugin_transform"] }
+swc_common = { version = "0.34.3", features = ["concurrent"] }
 
 # .cargo/config defines few alias to build plugin.
 # cargo build-wasi generates wasm-wasi32 binary

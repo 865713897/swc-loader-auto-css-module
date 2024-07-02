@@ -1,48 +1,71 @@
 use swc_core::ecma::{
-    ast::Program,
-    transforms::testing::test_inline,
-    visit::{as_folder, FoldWith, VisitMut},
+    ast::{ ImportDecl, Module, Program },
+    visit::{ as_folder, FoldWith, VisitMut, VisitMutWith },
 };
-use swc_core::plugin::{plugin_transform, proxies::TransformPluginProgramMetadata};
+use swc_core::plugin::{ plugin_transform, proxies::TransformPluginProgramMetadata };
+use serde::Deserialize;
 
-pub struct TransformVisitor;
+const DEFAULT_CSS_SUFFIX: [&str; 4] = [".css", ".less", ".scss", ".sass"];
+const DEFAULT_FILE_SUFFIX: &str = "css_modules";
+
+#[derive(Deserialize, Debug)]
+#[serde(untagged)]
+enum CssSuffixConfig {
+    Single(String),
+    Multiple(Vec<String>),
+}
+
+#[derive(Deserialize, Debug)]
+pub struct PluginConfig {
+    css_suffix: Option<CssSuffixConfig>,
+    file_suffix: Option<String>,
+}
+
+pub struct TransformVisitor {
+    css_suffix: Vec<String>,
+    file_suffix: String,
+}
+
+impl TransformVisitor {
+    pub fn new(css_suffix: Vec<String>, file_suffix: String) -> Self {
+        Self { css_suffix, file_suffix }
+    }
+}
 
 impl VisitMut for TransformVisitor {
-    // Implement necessary visit_mut_* methods for actual custom transform.
-    // A comprehensive list of possible visitor methods can be found here:
-    // https://rustdoc.swc.rs/swc_ecma_visit/trait.VisitMut.html
+    fn visit_mut_module(&mut self, n: &mut Module) {
+        n.visit_mut_children_with(self);
+    }
+
+    fn visit_mut_import_decl(&mut self, n: &mut ImportDecl) {
+        if !n.specifiers.is_empty() {
+            if let Some(extension) = n.src.value.split('.').last() {
+                if self.css_suffix.contains(&extension.to_string()) {
+                    let new_value = format!("{}?{}", n.src.value, self.file_suffix);
+                    n.src.value = new_value.clone().into();
+                    n.src.raw = Some(format!("\"{}\"", new_value).into());
+                }
+            }
+        }
+    }
 }
 
-/// An example plugin function with macro support.
-/// `plugin_transform` macro interop pointers into deserialized structs, as well
-/// as returning ptr back to host.
-///
-/// It is possible to opt out from macro by writing transform fn manually
-/// if plugin need to handle low-level ptr directly via
-/// `__transform_plugin_process_impl(
-///     ast_ptr: *const u8, ast_ptr_len: i32,
-///     unresolved_mark: u32, should_enable_comments_proxy: i32) ->
-///     i32 /*  0 for success, fail otherwise.
-///             Note this is only for internal pointer interop result,
-///             not actual transform result */`
-///
-/// This requires manual handling of serialization / deserialization from ptrs.
-/// Refer swc_plugin_macro to see how does it work internally.
 #[plugin_transform]
-pub fn process_transform(program: Program, _metadata: TransformPluginProgramMetadata) -> Program {
-    program.fold_with(&mut as_folder(TransformVisitor))
-}
+pub fn process_transform(program: Program, data: TransformPluginProgramMetadata) -> Program {
+    let config: PluginConfig = serde_json
+        ::from_str(&data.get_transform_plugin_config().expect("failed to get plugin config"))
+        .unwrap_or_else(|_| { PluginConfig { css_suffix: None, file_suffix: None } });
 
-// An example to test plugin transform.
-// Recommended strategy to test plugin's transform is verify
-// the Visitor's behavior, instead of trying to run `process_transform` with mocks
-// unless explicitly required to do so.
-test_inline!(
-    Default::default(),
-    |_| as_folder(TransformVisitor),
-    boo,
-    // Input codes
-    r#"console.log("transform");"#,
-    // Output codes after transformed with plugin
-    r#"console.log("transform");"#
-);
+    let css_suffix = match config.css_suffix {
+        Some(CssSuffixConfig::Single(suffix)) => vec![suffix],
+        Some(CssSuffixConfig::Multiple(suffixes)) => suffixes,
+        None =>
+            DEFAULT_CSS_SUFFIX.iter()
+                .map(|&s| s.to_string())
+                .collect(),
+    };
+
+    let file_suffix = config.file_suffix.unwrap_or_else(|| DEFAULT_FILE_SUFFIX.to_string());
+
+    program.fold_with(&mut as_folder(TransformVisitor::new(css_suffix, file_suffix)))
+}
