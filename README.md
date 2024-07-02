@@ -18,8 +18,8 @@ npm install swc-plugin-auto-css-module -D
 
 | 参数名     | 类型     | 默认值                              | 说明                          |
 | ---------- | -------- | ----------------------------------- | ----------------------------- |
-| cssSuffix  | string[] | ['.css', '.less', '.scss', '.sass'] | 需要添加后缀的 css 文件后缀名 |
-| fileSuffix | string   | 'css_modules'                       | 添加后缀的文件名后缀          |
+| css_suffix  | string[] | ['.css', '.less', '.scss', '.sass'] | 需要添加后缀的 css 文件后缀名 |
+| file_suffix | string   | 'css_modules'                       | 添加后缀的文件名后缀          |
 
 ## 使用
 
@@ -29,7 +29,7 @@ npm install swc-plugin-auto-css-module -D
   "jsx": {
     ...
     "experimental": {
-      "plugins": [["swc-plugin-auto-css-module", { cssSuffix: ['.css', '.less', '.scss', '.sass'], fileSuffix: 'css_modules'}]]
+      "plugins": [["swc-plugin-auto-css-module", { css_suffix: ['.css', '.less', '.scss', '.sass'], file_suffix: 'css_modules'}]]
     }
   }
 }
